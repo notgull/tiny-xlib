@@ -45,6 +45,7 @@ type XGetXCBConnection = unsafe extern "C" fn(display: *mut Display) -> *mut xcb
 pub(crate) type XErrorHook =
     Option<unsafe extern "C" fn(display: *mut Display, error_event: *mut XErrorEvent) -> c_int>;
 type XSetErrorHandler = unsafe extern "C" fn(handler: XErrorHook) -> XErrorHook;
+type XInitThreads = unsafe extern "C" fn() -> c_int;
 
 /// Catalogue of functions offered by Xlib.
 pub(crate) struct Xlib {
@@ -65,6 +66,9 @@ pub(crate) struct Xlib {
 
     /// The XSetErrorHandler function.
     x_set_error_handler: XSetErrorHandler,
+
+    /// The XInitThreads function.
+    x_init_threads: XInitThreads,
 }
 
 impl Xlib {
@@ -88,6 +92,11 @@ impl Xlib {
         (self.x_set_error_handler)(handler)
     }
 
+    /// Initialize threads.
+    pub(crate) unsafe fn init_threads(&self) -> c_int {
+        (self.x_init_threads)()
+    }
+
     /// Load the Xlib library at runtime.
     pub(crate) fn load() -> Result<Self, libloading::Error> {
         let xlib_library = unsafe { libloading::Library::new("libX11.so") }?;
@@ -103,11 +112,14 @@ impl Xlib {
         let x_get_xcb_connection =
             unsafe { xlib_xcb_library.get::<XGetXCBConnection>(b"XGetXCBConnection\0")? };
 
+        let x_init_threads = unsafe { xlib_library.get::<XInitThreads>(b"XInitThreads\0")? };
+
         Ok(Self {
             x_open_display: *x_open_display,
             x_close_display: *x_close_display,
             x_get_xcb_connection: *x_get_xcb_connection,
             x_set_error_handler: *x_set_error_handler,
+            x_init_threads: *x_init_threads,
             _xlib_library: Some(xlib_library),
             _xlib_xcb_library: Some(xlib_xcb_library),
         })
