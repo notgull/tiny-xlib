@@ -31,14 +31,14 @@
 //!     locked yourself into, and use [XCB] or [`x11rb`] for everything else. Yes, I just called [GLX]
 //!     a legacy API. It's the 2020's now. [Vulkan] and [`wgpu`] run everywhere aside from legacy machines.
 //!     Not to mention, they support [XCB].
-//! 
+//!
 //! 2. Even if you manage to use [`x11-dl`] without tripping over the legacy API, it is a massive crate.
 //!     [Xlib] comes with quite a few functions, most of which are unnecessary in the 21st century.
 //!     Even if you don't use any of these and just stick to [XCB], you still pay the price for it.
 //!     Binaries that use [`x11-dl`] need to dedicate a significant amount of their binary and memory
 //!     space to the library. Even on Release builds, I have recorded [`x11-dl`] taking up to seven
 //!     percent of the binary.
-//! 
+//!
 //! 3. Global error handling. [Xlib] has a single global error hook. This is reminiscent of the Unix
 //!     signal handling API, in that it makes it difficult to create well-modularized programs
 //!     since they will fight with each-other over the error handlers. However, unlike the signal
@@ -70,7 +70,7 @@
 //! ```no_run
 //! use as_raw_xcb_connection::AsRawXcbConnection;
 //! use tiny_xlib::Display;
-//! 
+//!
 //! use x11rb::connection::Connection;
 //! use x11rb::xcb_ffi::XCBConnection;
 //!
@@ -80,22 +80,22 @@
 //!
 //! // Get the XCB connection.
 //! let xcb_conn = display.as_raw_xcb_connection();
-//! 
+//!
 //! // Use that pointer to create a new XCB connection.
 //! let xcb_conn = unsafe { XCBConnection::from_raw_xcb_connection(xcb_conn, false)? };
-//! 
+//!
 //! // Register a handler for X11 errors.
 //! tiny_xlib::register_error_handler(Box::new(|_, error| {
 //!     println!("X11 error: {}", error);
 //! }));
-//! 
+//!
 //! // Do whatever you want with the XCB connection.
 //! loop {
 //!     println!("Event: {:?}", conn.wait_for_event()?);
 //! }
 //! # Ok(()) }
 //! ```
-//! 
+//!
 //! [Xlib]: https://en.wikipedia.org/wiki/Xlib
 //! [XCB]: https://xcb.freedesktop.org/
 //! [`x11-dl`]: https://crates.io/crates/x11-dl
@@ -223,6 +223,11 @@ unsafe extern "C" fn error_handler(
 fn setup_error_handler(xlib: &ffi::Xlib) {
     static REGISTERED: Once = Once::new();
     REGISTERED.call_once(move || {
+        // Make sure threads are initialized here.
+        unsafe {
+            xlib.init_threads();
+        }
+
         // Get the previous error handler.
         let prev = unsafe { xlib.set_error_handler(Some(error_handler)) };
 
@@ -300,18 +305,11 @@ impl Display {
     pub fn new(name: Option<&CStr>) -> io::Result<Self> {
         let xlib = get_xlib(&XLIB)?;
 
-        // Initialize threads if we haven't already.
-        static INIT_THREADS: Once = Once::new();
-        INIT_THREADS.call_once(move || unsafe {
-            // SAFETY: This is safe to call once at the start.
-            xlib.init_threads();
-        });
+        // Make sure the error handler is registered.
+        setup_error_handler(xlib);
 
         let name = name.map_or(std::ptr::null(), |n| n.as_ptr());
         let pointer = unsafe { xlib.open_display(name) };
-
-        // Make sure the error handler is registered.
-        setup_error_handler(xlib);
 
         NonNull::new(pointer)
             .map(|ptr| Self {
