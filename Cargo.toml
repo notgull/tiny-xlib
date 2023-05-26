@@ -4,6 +4,11 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.63"
 authors = ["John Nunley <jtnunley01@gmail.com>"]
+license = "MIT OR Apache-2.0 OR Zlib"
+description = "A tiny Xlib wrapper for Rust"
+repository = "https://github.com/notgull/tiny-xlib"
+documentation = "https://docs.rs/tiny-xlib"
+homepage = "https://github.com/notgull/tiny-xlib"
 
 [features]
 linked = []
