@@ -41,6 +41,7 @@ jobs:
       - name: Run cargo check (without dev-dependencies to catch missing feature flags)
         if: startsWith(matrix.rust, 'nightly')
         run: cargo check -Z features=dev_dep
+      - run: sudo apt update -y && sudo apt install -y libx11-xcb-dev
       - run: xvfb-run cargo test --all
 
   msrv:
@@ -49,7 +50,7 @@ jobs:
       matrix:
         # When updating this, the reminder to update the minimum supported
         # Rust version in Cargo.toml.
-        rust: ['1.39']
+        rust: ['1.63']
     steps:
       - uses: actions/checkout@v3
       - name: Install Rust
