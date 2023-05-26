@@ -109,6 +109,7 @@
 //! [`Display`]: struct.Display.html
 //! [`AsRawXcbConnection`]: https://docs.rs/as_raw_xcb_connection/latest/as_raw_xcb_connection/trait.AsRawXcbConnection.html
 
+#![allow(unused_unsafe)]
 #![cfg_attr(coverage, feature(no_coverage))]
 
 mod ffi;
