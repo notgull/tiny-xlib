@@ -457,12 +457,13 @@ impl HandlerList {
 
         let index = self.filled;
 
-        if self.unfilled < self.slots.len() {
+        if self.unfilled == self.slots.len() {
+            self.slots.push(Slot::Filled(handler));
+            self.unfilled += 1;
+        } else {
             let unfilled = self.unfilled;
             self.unfilled = unwrapper(&self.slots[unfilled]);
             self.slots[unfilled] = Slot::Filled(handler);
-        } else {
-            self.slots.push(Slot::Filled(handler));
         }
 
         self.filled += 1;
