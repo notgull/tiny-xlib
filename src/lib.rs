@@ -82,16 +82,19 @@
 //! let xcb_conn = display.as_raw_xcb_connection();
 //!
 //! // Use that pointer to create a new XCB connection.
-//! let xcb_conn = unsafe { XCBConnection::from_raw_xcb_connection(xcb_conn, false)? };
+//! let xcb_conn = unsafe {
+//!     XCBConnection::from_raw_xcb_connection(xcb_conn.cast(), false)?
+//! };
 //!
 //! // Register a handler for X11 errors.
 //! tiny_xlib::register_error_handler(Box::new(|_, error| {
-//!     println!("X11 error: {}", error);
+//!     println!("X11 error: {:?}", error);
+//!     false
 //! }));
 //!
 //! // Do whatever you want with the XCB connection.
 //! loop {
-//!     println!("Event: {:?}", conn.wait_for_event()?);
+//!     println!("Event: {:?}", xcb_conn.wait_for_event()?);
 //! }
 //! # Ok(()) }
 //! ```
@@ -106,6 +109,8 @@
 //! [`Display`]: struct.Display.html
 //! [`AsRawXcbConnection`]: https://docs.rs/as_raw_xcb_connection/latest/as_raw_xcb_connection/trait.AsRawXcbConnection.html
 
+#![cfg_attr(coverage, feature(no_coverage))]
+
 mod ffi;
 
 use std::cell::Cell;
@@ -116,11 +121,24 @@ use std::marker::PhantomData;
 use std::mem;
 use std::os::raw::{c_int, c_void};
 use std::ptr::{self, NonNull};
-use std::sync::{Mutex, Once};
+use std::sync::{Mutex, MutexGuard, Once, PoisonError};
+
+macro_rules! lock {
+    ($e:expr) => {{
+        // Make sure this isn't flagged with coverage.
+        #[cfg_attr(coverage, no_coverage)]
+        fn unwrapper<T>(guard: PoisonError<MutexGuard<'_, T>>) -> MutexGuard<'_, T> {
+            guard.into_inner()
+        }
+
+        ($e).lock().unwrap_or_else(unwrapper)
+    }};
+}
 
 /// The global bindings to Xlib.
 #[ctor::ctor]
 static XLIB: io::Result<ffi::Xlib> = {
+    #[cfg_attr(coverage, no_coverage)]
     unsafe fn load_xlib_with_error_hook() -> io::Result<ffi::Xlib> {
         // Here's a puzzle: how do you *safely* add an error hook to Xlib? Like signal handling, there
         // is a single global error hook. Therefore, we need to make sure that we economize on the
@@ -137,11 +155,14 @@ static XLIB: io::Result<ffi::Xlib> = {
         // sets the error hook to a dummy function, reads the resulting error hook into a static
         // variable, and then resets the error hook to the default function. This allows us to read
         // the default error hook and compare it to the one that we're setting.
-        let xlib = ffi::Xlib::load().map_err(|e| {
+        #[cfg_attr(coverage, no_coverage)]
+        fn error(e: libloading::Error) -> io::Error {
             io::Error::new(io::ErrorKind::Other, format!("failed to load Xlib: {}", e))
-        })?;
+        }
+        let xlib = ffi::Xlib::load().map_err(error)?;
 
         // Dummy function we use to set the error hook.
+        #[cfg_attr(coverage, no_coverage)]
         unsafe extern "C" fn dummy(
             _display: *mut ffi::Display,
             _error: *mut ffi::XErrorEvent,
@@ -168,8 +189,13 @@ static XLIB: io::Result<ffi::Xlib> = {
 
 #[inline]
 fn get_xlib(sym: &io::Result<ffi::Xlib>) -> io::Result<&ffi::Xlib> {
-    sym.as_ref()
-        .map_err(|e| io::Error::new(e.kind(), e.to_string()))
+    // Eat coverage on the error branch.
+    #[cfg_attr(coverage, no_coverage)]
+    fn error(e: &io::Error) -> io::Error {
+        io::Error::new(e.kind(), e.to_string())
+    }
+
+    sym.as_ref().map_err(error)
 }
 
 /// The default error hook to compare against.
@@ -189,6 +215,9 @@ unsafe extern "C" fn error_handler(
     // Abort the program if the error hook panics.
     struct AbortOnPanic;
     impl Drop for AbortOnPanic {
+        #[cfg_attr(coverage, no_coverage)]
+        #[cold]
+        #[inline(never)]
         fn drop(&mut self) {
             std::process::abort();
         }
@@ -197,7 +226,7 @@ unsafe extern "C" fn error_handler(
     let bomb = AbortOnPanic;
 
     // Run the previous error hook, if any.
-    let mut handlers = ERROR_HANDLERS.lock().unwrap_or_else(|e| e.into_inner());
+    let mut handlers = lock!(ERROR_HANDLERS);
     handlers.run_prev(display, error);
 
     // Read out the variables.
@@ -235,21 +264,22 @@ fn setup_error_handler(xlib: &ffi::Xlib) {
         // SAFETY: DEFAULT_ERROR_HOOK is not set after the program starts, so this is safe.
         let default_hook = unsafe { DEFAULT_ERROR_HOOK.get() };
         if prev != default_hook.flatten() && prev != Some(error_handler) {
-            ERROR_HANDLERS
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .prev = prev;
+            lock!(ERROR_HANDLERS).prev = prev;
         }
     });
 }
 
 /// A key to the error handler list that can be used to remove handlers.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone)]
 pub struct HandlerKey(usize);
 
 /// The error event type.
 #[derive(Clone)]
 pub struct ErrorEvent(ffi::XErrorEvent);
+
+// SAFETY: With XInitThreads, ErrorEvent is both Send and Sync.
+unsafe impl Send for ErrorEvent {}
+unsafe impl Sync for ErrorEvent {}
 
 impl ErrorEvent {
     /// Get the serial number of the failed request.
@@ -300,6 +330,10 @@ pub struct Display {
     _marker: PhantomData<Box<ffi::Display>>,
 }
 
+// SAFETY: With XInitThreads, Display is both Send and Sync.
+unsafe impl Send for Display {}
+unsafe impl Sync for Display {}
+
 impl Display {
     /// Open a new display.
     pub fn new(name: Option<&CStr>) -> io::Result<Self> {
@@ -349,7 +383,7 @@ pub fn register_error_handler(handler: ErrorHook) -> io::Result<HandlerKey> {
     setup_error_handler(get_xlib(&XLIB)?);
 
     // Insert the handler into the list.
-    let mut handlers = ERROR_HANDLERS.lock().unwrap_or_else(|e| e.into_inner());
+    let mut handlers = lock!(ERROR_HANDLERS);
     let key = handlers.insert(handler);
     Ok(HandlerKey(key))
 }
@@ -357,7 +391,7 @@ pub fn register_error_handler(handler: ErrorHook) -> io::Result<HandlerKey> {
 /// Remove an error handler from the list.
 pub fn unregister_error_handler(key: HandlerKey) {
     // Remove the handler from the list.
-    let mut handlers = ERROR_HANDLERS.lock().unwrap_or_else(|e| e.into_inner());
+    let mut handlers = lock!(ERROR_HANDLERS);
     handlers.remove(key.0);
 }
 
@@ -389,6 +423,7 @@ enum Slot {
 
 impl HandlerList {
     /// Create a new handler list.
+    #[cfg_attr(coverage, no_coverage)]
     const fn new() -> Self {
         Self {
             slots: vec![],
@@ -409,14 +444,21 @@ impl HandlerList {
     ///
     /// Returns the index of the handler.
     fn insert(&mut self, handler: ErrorHook) -> usize {
+        // Eat the coverage for the unreachable branch.
+        #[cfg_attr(coverage, no_coverage)]
+        #[inline(always)]
+        fn unwrapper(slot: &Slot) -> usize {
+            match slot {
+                Slot::Filled(_) => unreachable!(),
+                Slot::Unfilled(next) => *next,
+            }
+        }
+
         let index = self.filled;
 
         if self.unfilled < self.slots.len() {
             let unfilled = self.unfilled;
-            self.unfilled = match self.slots[unfilled] {
-                Slot::Unfilled(next) => next,
-                _ => unreachable!(),
-            };
+            self.unfilled = unwrapper(&self.slots[unfilled]);
             self.slots[unfilled] = Slot::Filled(handler);
         } else {
             self.slots.push(Slot::Filled(handler));
@@ -453,6 +495,7 @@ struct ErrorHookSlot(Cell<Option<ffi::XErrorHook>>);
 unsafe impl Sync for ErrorHookSlot {}
 
 impl ErrorHookSlot {
+    #[cfg_attr(coverage, no_coverage)]
     const fn new() -> Self {
         Self(Cell::new(None))
     }
@@ -461,6 +504,7 @@ impl ErrorHookSlot {
         self.0.get()
     }
 
+    #[cfg_attr(coverage, no_coverage)]
     unsafe fn set(&self, hook: ffi::XErrorHook) {
         self.0.set(Some(hook));
     }

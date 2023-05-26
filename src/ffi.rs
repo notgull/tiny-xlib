@@ -98,6 +98,7 @@ impl Xlib {
     }
 
     /// Load the Xlib library at runtime.
+    #[cfg_attr(coverage, no_coverage)]
     pub(crate) fn load() -> Result<Self, libloading::Error> {
         let xlib_library = unsafe { libloading::Library::new("libX11.so") }?;
         let xlib_xcb_library = unsafe { libloading::Library::new("libX11-xcb.so") }?;
