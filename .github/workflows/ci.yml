@@ -43,6 +43,8 @@ jobs:
         run: cargo check -Z features=dev_dep
       - run: sudo apt update -y && sudo apt install -y libx11-xcb-dev
       - run: xvfb-run cargo test --all
+      - run: xvfb-run cargo test --all --no-default-features
+      - run: xvfb-run cargo test --all --features dlopen
 
   msrv:
     runs-on: ubuntu-latest
@@ -57,6 +59,7 @@ jobs:
         run: rustup update ${{ matrix.rust }} && rustup default ${{ matrix.rust }}
       - run: cargo build --all
       - run: cargo build --all --no-default-features
+      - run: cargo build --all --features dlopen
 
   clippy:
     runs-on: ubuntu-latest

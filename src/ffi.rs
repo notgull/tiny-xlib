@@ -50,10 +50,12 @@ type XInitThreads = unsafe extern "C" fn() -> c_int;
 /// Catalogue of functions offered by Xlib.
 pub(crate) struct Xlib {
     /// The currently loaded Xlib library.
-    _xlib_library: Option<libloading::Library>,
+    #[cfg(feature = "dlopen")]
+    _xlib_library: libloading::Library,
 
     /// The currently loaded XlibXcb library.
-    _xlib_xcb_library: Option<libloading::Library>,
+    #[cfg(feature = "dlopen")]
+    _xlib_xcb_library: libloading::Library,
 
     /// The XOpenDisplay function.
     x_open_display: XOpenDisplay,
@@ -99,6 +101,35 @@ impl Xlib {
 
     /// Load the Xlib library at runtime.
     #[cfg_attr(coverage, no_coverage)]
+    #[cfg(not(feature = "dlopen"))]
+    pub(crate) fn load() -> Result<Self, std::io::Error> {
+        #[cfg_attr(feature = "static", link(name = "X11", kind = "static"))]
+        #[cfg_attr(not(feature = "static"), link(name = "X11", kind = "dylib"))]
+        extern "C" {
+            fn XOpenDisplay(display_name: *const c_char) -> *mut Display;
+            fn XCloseDisplay(display: *mut Display) -> c_int;
+            fn XSetErrorHandler(handler: XErrorHook) -> XErrorHook;
+            fn XInitThreads() -> c_int;
+        }
+
+        #[cfg_attr(feature = "static", link(name = "X11-xcb", kind = "static"))]
+        #[cfg_attr(not(feature = "static"), link(name = "X11-xcb", kind = "dylib"))]
+        extern "C" {
+            fn XGetXCBConnection(display: *mut Display) -> *mut xcb_connection_t;
+        }
+
+        Ok(Self {
+            x_open_display: XOpenDisplay,
+            x_close_display: XCloseDisplay,
+            x_get_xcb_connection: XGetXCBConnection,
+            x_set_error_handler: XSetErrorHandler,
+            x_init_threads: XInitThreads,
+        })
+    }
+
+    /// Load the Xlib library at runtime.
+    #[cfg_attr(coverage, no_coverage)]
+    #[cfg(feature = "dlopen")]
     pub(crate) fn load() -> Result<Self, libloading::Error> {
         let xlib_library = unsafe { libloading::Library::new("libX11.so") }?;
         let xlib_xcb_library = unsafe { libloading::Library::new("libX11-xcb.so") }?;
@@ -121,8 +152,8 @@ impl Xlib {
             x_get_xcb_connection: *x_get_xcb_connection,
             x_set_error_handler: *x_set_error_handler,
             x_init_threads: *x_init_threads,
-            _xlib_library: Some(xlib_library),
-            _xlib_xcb_library: Some(xlib_xcb_library),
+            _xlib_library: xlib_library,
+            _xlib_xcb_library: xlib_xcb_library,
         })
     }
 }

@@ -112,6 +112,9 @@
 #![allow(unused_unsafe)]
 #![cfg_attr(coverage, feature(no_coverage))]
 
+#[cfg(all(feature = "static", feature = "dlopen"))]
+compile_error!("Cannot enable both the static and dlopen features.");
+
 mod ffi;
 
 use std::cell::Cell;
@@ -157,7 +160,7 @@ static XLIB: io::Result<ffi::Xlib> = {
         // variable, and then resets the error hook to the default function. This allows us to read
         // the default error hook and compare it to the one that we're setting.
         #[cfg_attr(coverage, no_coverage)]
-        fn error(e: libloading::Error) -> io::Error {
+        fn error(e: impl std::error::Error) -> io::Error {
             io::Error::new(io::ErrorKind::Other, format!("failed to load Xlib: {}", e))
         }
         let xlib = ffi::Xlib::load().map_err(error)?;
