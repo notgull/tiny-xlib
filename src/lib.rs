@@ -112,9 +112,6 @@
 #![allow(unused_unsafe)]
 #![cfg_attr(coverage, feature(no_coverage))]
 
-#[cfg(all(feature = "static", feature = "dlopen"))]
-compile_error!("Cannot enable both the static and dlopen features.");
-
 mod ffi;
 
 use std::cell::Cell;

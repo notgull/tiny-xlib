@@ -103,8 +103,7 @@ impl Xlib {
     #[cfg_attr(coverage, no_coverage)]
     #[cfg(not(feature = "dlopen"))]
     pub(crate) fn load() -> Result<Self, std::io::Error> {
-        #[cfg_attr(feature = "static", link(name = "X11", kind = "static"))]
-        #[cfg_attr(not(feature = "static"), link(name = "X11", kind = "dylib"))]
+        #[link(name = "X11", kind = "dylib")]
         extern "C" {
             fn XOpenDisplay(display_name: *const c_char) -> *mut Display;
             fn XCloseDisplay(display: *mut Display) -> c_int;
@@ -112,8 +111,7 @@ impl Xlib {
             fn XInitThreads() -> c_int;
         }
 
-        #[cfg_attr(feature = "static", link(name = "X11-xcb", kind = "static"))]
-        #[cfg_attr(not(feature = "static"), link(name = "X11-xcb", kind = "dylib"))]
+        #[link(name = "X11-xcb", kind = "dylib")]
         extern "C" {
             fn XGetXCBConnection(display: *mut Display) -> *mut xcb_connection_t;
         }
