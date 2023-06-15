@@ -59,7 +59,7 @@ fn error_handling() {
     tiny_xlib::unregister_error_handler(key);
     let error = error.lock().unwrap().take().unwrap();
     assert_eq!(error.error_code(), x11_dl::xlib::BadDrawable as _);
-    assert!((0x1137..0x133A).contains(&error.resource_id()));
+    assert_eq!(error.resource_id(), 0x1337);
     assert_eq!(error.minor_code(), 0);
 
     // Eat coverage.
@@ -124,9 +124,7 @@ fn trigger_error(display: &Display) {
 
     let xlib = x11_dl::xlib::Xlib::open().unwrap();
     unsafe {
-        for fake_gc in 0x1337..0x133A {
-            (xlib.XCreateGC)(display.as_ptr().cast(), fake_gc, 0, std::ptr::null_mut());
-        }
+        (xlib.XCreateGC)(display.as_ptr().cast(), 0x1337, 0, std::ptr::null_mut());
         (xlib.XSync)(display.as_ptr().cast(), 0);
     }
 }
