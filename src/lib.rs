@@ -119,7 +119,7 @@ use std::ffi::CStr;
 use std::fmt;
 use std::io;
 use std::marker::PhantomData;
-use std::mem;
+use std::mem::{self, ManuallyDrop};
 use std::os::raw::{c_int, c_void};
 use std::ptr::{self, NonNull};
 use std::sync::{Mutex, MutexGuard, Once, PoisonError};
@@ -231,10 +231,8 @@ unsafe extern "C" fn error_handler(
     handlers.run_prev(display, error);
 
     // Read out the variables.
-    let display_ptr = mem::ManuallyDrop::new(Display {
-        ptr: NonNull::new_unchecked(display),
-        _marker: PhantomData,
-    });
+    // SAFETY: Guaranteed to be a valid display setup.
+    let display_ptr = unsafe { Display::from_ptr(display.cast()) };
     let event = ErrorEvent(ptr::read(error));
 
     #[cfg(feature = "tracing")]
@@ -379,6 +377,20 @@ impl Display {
                 _marker: PhantomData,
             })
             .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "failed to open display"))
+    }
+
+    /// Create a new `Display` from a pointer.
+    ///
+    /// # Safety
+    ///
+    /// The pointer must be a valid pointer to an Xlib display. In addition, it should only be dropped if the
+    /// user logically owns the display.
+    pub unsafe fn from_ptr(ptr: *mut c_void) -> ManuallyDrop<Self> {
+        ManuallyDrop::new(Self {
+            // SAFETY: "valid" implies non-null
+            ptr: NonNull::new_unchecked(ptr.cast()),
+            _marker: PhantomData,
+        })
     }
 
     /// Get the pointer to the display.
