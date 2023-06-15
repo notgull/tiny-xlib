@@ -125,7 +125,11 @@ fn trigger_error(display: &Display) {
     let xlib = x11_dl::xlib::Xlib::open().unwrap();
     unsafe {
         (xlib.XCreateGC)(display.as_ptr().cast(), 0x1337, 0, std::ptr::null_mut());
-        (xlib.XFlush)(display.as_ptr().cast());
         (xlib.XSync)(display.as_ptr().cast(), 0);
+
+        // Round trip a request.
+        let mut x = 0;
+        let mut y = 0;
+        (xlib.XGetInputFocus)(display.as_ptr().cast(), &mut x, &mut y);
     }
 }
