@@ -231,16 +231,37 @@ unsafe extern "C" fn error_handler(
     handlers.run_prev(display, error);
 
     // Read out the variables.
-    let display = mem::ManuallyDrop::new(Display {
+    let display_ptr = mem::ManuallyDrop::new(Display {
         ptr: NonNull::new_unchecked(display),
         _marker: PhantomData,
     });
     let event = ErrorEvent(ptr::read(error));
 
+    #[cfg(feature = "tracing")]
+    tracing::error!(
+        display = ?&*display_ptr,
+        error = ?event,
+        "got Xlib error",
+    );
+
     // Invoke the error hooks.
-    handlers
-        .iter_mut()
-        .any(|handler| (handler)(&display, &event));
+    handlers.iter_mut().any(|(_i, handler)| {
+        #[cfg(feature = "tracing")]
+        tracing::trace!(key = _i, "invoking error handler");
+
+        let stop_going = (handler)(&display_ptr, &event);
+
+        #[cfg(feature = "tracing")]
+        {
+            if stop_going {
+                tracing::trace!("error handler returned true, stopping");
+            } else {
+                tracing::trace!("error handler returned false, continuing");
+            }
+        }
+
+        stop_going
+    });
 
     // Defuse the bomb.
     mem::forget(bomb);
@@ -334,6 +355,12 @@ pub struct Display {
 // SAFETY: With XInitThreads, Display is both Send and Sync.
 unsafe impl Send for Display {}
 unsafe impl Sync for Display {}
+
+impl fmt::Debug for Display {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Display").field(&self.ptr.as_ptr()).finish()
+    }
+}
 
 impl Display {
     /// Open a new display.
@@ -483,11 +510,14 @@ impl HandlerList {
     }
 
     /// Iterate over the error handlers.
-    fn iter_mut(&mut self) -> impl Iterator<Item = &mut ErrorHook> {
-        self.slots.iter_mut().filter_map(|slot| match slot {
-            Slot::Filled(handler) => Some(handler),
-            _ => None,
-        })
+    fn iter_mut(&mut self) -> impl Iterator<Item = (usize, &mut ErrorHook)> {
+        self.slots
+            .iter_mut()
+            .enumerate()
+            .filter_map(|(i, slot)| match slot {
+                Slot::Filled(handler) => Some((i, handler)),
+                _ => None,
+            })
     }
 }
 

@@ -36,6 +36,8 @@ unsafe extern "C" fn prev_handler(
 
 #[test]
 fn replace_old_handler() {
+    tracing_subscriber::fmt::try_init().ok();
+
     // Simulate setting the handler.
     unsafe {
         (x11_dl::xlib::Xlib::open().unwrap().XSetErrorHandler)(Some(prev_handler));

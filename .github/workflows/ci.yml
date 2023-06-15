@@ -42,9 +42,9 @@ jobs:
         if: startsWith(matrix.rust, 'nightly')
         run: cargo check -Z features=dev_dep
       - run: sudo apt update -y && sudo apt install -y libx11-xcb-dev
-      - run: xvfb-run cargo test --all
-      - run: xvfb-run cargo test --all --no-default-features
-      - run: xvfb-run cargo test --all --features dlopen
+      - run: xvfb-run cargo test --all --jobs 1
+      - run: xvfb-run cargo test --all --no-default-features --jobs 1
+      - run: xvfb-run cargo test --all --features dlopen --jobs 1
 
   msrv:
     runs-on: ubuntu-latest

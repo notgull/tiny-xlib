@@ -24,6 +24,8 @@ use tiny_xlib::Display;
 
 #[test]
 fn smoke() {
+    tracing_subscriber::fmt::try_init().ok();
+
     let display = Display::new(None).unwrap();
     let _conn = unsafe {
         x11rb::xcb_ffi::XCBConnection::from_raw_xcb_connection(
@@ -36,6 +38,7 @@ fn smoke() {
 
 #[test]
 fn error_handling() {
+    tracing_subscriber::fmt::try_init().ok();
     let display = Display::new(None).unwrap();
 
     // Add a handler for the error.
@@ -66,12 +69,15 @@ fn error_handling() {
 
 #[test]
 fn display_should_be_able_to_fail_creating() {
+    tracing_subscriber::fmt::try_init().ok();
     let res = Display::new(Some(&CString::new("not-a-real-display").unwrap()));
     assert!(res.is_err());
 }
 
 #[test]
 fn remove_and_re_insert() {
+    tracing_subscriber::fmt::try_init().ok();
+
     let bad_flag = Arc::new(Mutex::new(false));
     let good_flag = Arc::new(Mutex::new(false));
 
@@ -114,6 +120,8 @@ fn remove_and_re_insert() {
 
 /// Trigger an error by creating a bad drawable.
 fn trigger_error(display: &Display) {
+    tracing_subscriber::fmt::try_init().ok();
+
     let xlib = x11_dl::xlib::Xlib::open().unwrap();
     unsafe {
         (xlib.XCreateGC)(display.as_ptr().cast(), 0x1337, 0, std::ptr::null_mut());
