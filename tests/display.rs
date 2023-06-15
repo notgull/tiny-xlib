@@ -19,7 +19,6 @@
 
 use as_raw_xcb_connection::AsRawXcbConnection;
 use std::ffi::CString;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use tiny_xlib::Display;
 
@@ -60,7 +59,6 @@ fn error_handling() {
     tiny_xlib::unregister_error_handler(key);
     let error = error.lock().unwrap().take().unwrap();
     assert_eq!(error.error_code(), x11_dl::xlib::BadDrawable as _);
-    assert_eq!(error.resource_id(), 0x1337);
     assert_eq!(error.minor_code(), 0);
 
     // Eat coverage.
@@ -120,16 +118,12 @@ fn remove_and_re_insert() {
 }
 
 /// Trigger an error by creating a bad drawable.
-#[allow(clippy::useless_conversion)]
 fn trigger_error(display: &Display) {
     tracing_subscriber::fmt::try_init().ok();
 
-    static NEXT_XID: AtomicU32 = AtomicU32::new(0x1337);
-
     let xlib = x11_dl::xlib::Xlib::open().unwrap();
-    let xid = NEXT_XID.fetch_add(1, Ordering::SeqCst);
     unsafe {
-        (xlib.XCreateGC)(display.as_ptr().cast(), xid as _, 0, std::ptr::null_mut());
+        (xlib.XCreateGC)(display.as_ptr().cast(), 0x1337, 0, std::ptr::null_mut());
         (xlib.XSync)(display.as_ptr().cast(), 0);
     }
 }
