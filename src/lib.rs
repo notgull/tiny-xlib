@@ -99,6 +99,12 @@
 //! # Ok(()) }
 //! ```
 //!
+//! # Optional Features
+//!
+//! - `tracing`, enabled by default, enables telemetry using the [`tracing`] crate.
+//! - `dlopen` uses the [`libloading`] library to load the X11 libraries instead of linking to them
+//!   directly.
+//!
 //! [Xlib]: https://en.wikipedia.org/wiki/Xlib
 //! [XCB]: https://xcb.freedesktop.org/
 //! [`x11-dl`]: https://crates.io/crates/x11-dl
@@ -108,6 +114,8 @@
 //! [`wgpu`]: https://crates.io/crates/wgpu
 //! [`Display`]: struct.Display.html
 //! [`AsRawXcbConnection`]: https://docs.rs/as_raw_xcb_connection/latest/as_raw_xcb_connection/trait.AsRawXcbConnection.html
+//! [`tracing`]: https://crates.io/crates/tracing
+//! [`libloading`]: https://crates.io/crates/libloading
 
 #![allow(unused_unsafe)]
 #![cfg_attr(coverage, feature(no_coverage))]

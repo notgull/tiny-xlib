@@ -129,8 +129,8 @@ impl Xlib {
     #[cfg_attr(coverage, no_coverage)]
     #[cfg(feature = "dlopen")]
     pub(crate) fn load() -> Result<Self, libloading::Error> {
-        let xlib_library = unsafe { libloading::Library::new("libX11.so") }?;
-        let xlib_xcb_library = unsafe { libloading::Library::new("libX11-xcb.so") }?;
+        let xlib_library = unsafe { load_library(&["libX11.so.6", "libX11.so"]) }?;
+        let xlib_xcb_library = unsafe { load_library(&["libX11-xcb.so.1", "libX11-xcb.so"]) }?;
 
         let x_open_display = unsafe { xlib_library.get::<XOpenDisplay>(b"XOpenDisplay\0")? };
 
@@ -154,4 +154,22 @@ impl Xlib {
             _xlib_xcb_library: xlib_xcb_library,
         })
     }
+}
+
+#[cfg(feature = "dlopen")]
+#[cfg_attr(coverage, no_coverage)]
+unsafe fn load_library(names: &[&str]) -> Result<libloading::Library, libloading::Error> {
+    debug_assert!(!names.is_empty());
+    let mut last_error = None;
+
+    for name in names {
+        match libloading::Library::new(name) {
+            Ok(lib) => return Ok(lib),
+            Err(err) => {
+                last_error = Some(err);
+            }
+        }
+    }
+
+    Err(last_error.unwrap())
 }
