@@ -234,9 +234,22 @@ unsafe extern "C" fn error_handler(
 
     let bomb = AbortOnPanic;
 
-    // Run the previous error hook, if any.
     let mut handlers = lock!(ERROR_HANDLERS);
-    handlers.run_prev(display, error);
+
+    let prev = handlers.prev;
+    if let Some(prev) = prev {
+        // Drop the mutex lock to make sure no deadlocks occur. Otherwise, if the prev handlers
+        // tries to add its own handler, we'll deadlock.
+        drop(handlers);
+
+        unsafe {
+            // Run the previous error hook, if any.
+            prev(display, error);
+        }
+
+        // Restore the mutex lock.
+        handlers = lock!(ERROR_HANDLERS);
+    }
 
     // Read out the variables.
     // SAFETY: Guaranteed to be a valid display setup.
@@ -478,13 +491,6 @@ impl HandlerList {
             filled: 0,
             unfilled: 0,
             prev: None,
-        }
-    }
-
-    /// Run the previous error handler.
-    unsafe fn run_prev(&mut self, display: *mut ffi::Display, event: *mut ffi::XErrorEvent) {
-        if let Some(prev) = self.prev {
-            prev(display, event);
         }
     }
 
