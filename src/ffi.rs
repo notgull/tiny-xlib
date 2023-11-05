@@ -22,6 +22,12 @@
 use as_raw_xcb_connection::xcb_connection_t;
 use std::os::raw::{c_char, c_int, c_uchar, c_ulong};
 
+// See build.rs for how this file is generated.
+#[cfg(feature = "dlopen")]
+include! {
+    concat!(env!("OUT_DIR"), "/libdir.rs")
+}
+
 /// Base type for the display pointer.
 pub(crate) enum Display {}
 
@@ -129,8 +135,9 @@ impl Xlib {
     #[cfg_attr(coverage, no_coverage)]
     #[cfg(feature = "dlopen")]
     pub(crate) fn load() -> Result<Self, libloading::Error> {
-        let xlib_library = unsafe { load_library(&["libX11.so.6", "libX11.so"]) }?;
-        let xlib_xcb_library = unsafe { load_library(&["libX11-xcb.so.1", "libX11-xcb.so"]) }?;
+        let xlib_library = unsafe { load_library(XLIB_LIBDIR, &["libX11.so.6", "libX11.so"]) }?;
+        let xlib_xcb_library =
+            unsafe { load_library(XLIB_XCB_LIBDIR, &["libX11-xcb.so.1", "libX11-xcb.so"]) }?;
 
         let x_open_display = unsafe { xlib_library.get::<XOpenDisplay>(b"XOpenDisplay\0")? };
 
@@ -158,16 +165,31 @@ impl Xlib {
 
 #[cfg(feature = "dlopen")]
 #[cfg_attr(coverage, no_coverage)]
-unsafe fn load_library(names: &[&str]) -> Result<libloading::Library, libloading::Error> {
+unsafe fn load_library(
+    prefix: Option<&str>,
+    names: &[&str],
+) -> Result<libloading::Library, libloading::Error> {
+    use std::path::{Path, PathBuf};
+
     debug_assert!(!names.is_empty());
     let mut last_error = None;
 
     for name in names {
-        match libloading::Library::new(name) {
+        let realpath = match prefix {
+            Some(prefix) => Path::new(prefix).join(name),
+            None => PathBuf::from(name),
+        };
+        match libloading::Library::new(realpath) {
             Ok(lib) => return Ok(lib),
             Err(err) => {
                 last_error = Some(err);
             }
+        }
+    }
+
+    if prefix.is_some() {
+        if let Ok(lib) = load_library(None, names) {
+            return Ok(lib);
         }
     }
 
