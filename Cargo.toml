@@ -3,7 +3,7 @@ name = "tiny-xlib"
 version = "0.2.2"
 edition = "2021"
 rust-version = "1.63"
-authors = ["John Nunley <jtnunley01@gmail.com>"]
+authors = ["John Nunley <dev@notgull.net>"]
 license = "MIT OR Apache-2.0 OR Zlib"
 description = "A tiny Xlib wrapper for Rust"
 repository = "https://github.com/notgull/tiny-xlib"
@@ -25,3 +25,6 @@ tracing = "0.1.37"
 tracing-subscriber = "0.3.17"
 x11-dl = "2.21.0"
 x11rb = { version = "0.12.0", features = ["allow-unsafe-code"] }
+
+[build-dependencies]
+pkg-config = "0.3.27"
