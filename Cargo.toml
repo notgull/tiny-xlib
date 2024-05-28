@@ -16,7 +16,7 @@ dlopen = ["libloading"]
 
 [dependencies]
 as-raw-xcb-connection = "1.0.0"
-ctor = "0.2.0"
+ctor-lite = "0.1.0"
 libloading = { version = "0.8.0", optional = true }
 tracing = { version = "0.1.37", default-features = false, optional = true }
 
