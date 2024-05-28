@@ -15,6 +15,5 @@ Contract project leadership at the email consisting of:
 - The BDFL's first initial.
 - The BDFL's middle initial.
 - The BDFL's last name.
-- Zero then one.
 - The "at" sign.
-- Gmail dot com.
+- notgull dot net
