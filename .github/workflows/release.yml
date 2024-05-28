@@ -10,7 +10,7 @@ on:
 
 jobs:
   create-release:
-    if: github.repository_owner == 'smol-rs'
+    if: github.repository_owner == 'notgull'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
