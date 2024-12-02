@@ -418,6 +418,23 @@ impl Display {
     pub fn as_ptr(&self) -> *mut c_void {
         self.ptr.as_ptr().cast()
     }
+
+    /// Get the default screen index for this display.
+    pub fn screen_index(&self) -> usize {
+        let xlib = get_xlib(&XLIB).expect("failed to load Xlib");
+
+        // SAFETY: Valid display pointer.
+        let index = unsafe { xlib.default_screen(self.ptr.as_ptr()) };
+
+        // Cast down to usize.
+        index.try_into().unwrap_or_else(|_| {
+            #[cfg(feature = "tracing")]
+            tracing::error!(
+                "XDefaultScreen returned a value out of usize range (how?!), returning zero"
+            );
+            0
+        })
+    }
 }
 
 unsafe impl as_raw_xcb_connection::AsRawXcbConnection for Display {
