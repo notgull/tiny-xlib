@@ -48,6 +48,7 @@ pub(crate) struct XErrorEvent {
 type XOpenDisplay = unsafe extern "C" fn(display_name: *const c_char) -> *mut Display;
 type XCloseDisplay = unsafe extern "C" fn(display: *mut Display) -> c_int;
 type XGetXCBConnection = unsafe extern "C" fn(display: *mut Display) -> *mut xcb_connection_t;
+type XDefaultScreen = unsafe extern "C" fn(display: *mut Display) -> c_int;
 pub(crate) type XErrorHook =
     Option<unsafe extern "C" fn(display: *mut Display, error_event: *mut XErrorEvent) -> c_int>;
 type XSetErrorHandler = unsafe extern "C" fn(handler: XErrorHook) -> XErrorHook;
@@ -72,6 +73,9 @@ pub(crate) struct Xlib {
     /// The XGetXCBConnection function.
     x_get_xcb_connection: XGetXCBConnection,
 
+    /// The XDefaultScreen function.
+    x_default_screen: XDefaultScreen,
+
     /// The XSetErrorHandler function.
     x_set_error_handler: XSetErrorHandler,
 
@@ -95,6 +99,11 @@ impl Xlib {
         (self.x_get_xcb_connection)(display)
     }
 
+    /// Get the default screen index.
+    pub(crate) unsafe fn default_screen(&self, display: *mut Display) -> c_int {
+        (self.x_default_screen)(display)
+    }
+
     /// Set the error handler.
     pub(crate) unsafe fn set_error_handler(&self, handler: XErrorHook) -> XErrorHook {
         (self.x_set_error_handler)(handler)
@@ -113,6 +122,7 @@ impl Xlib {
         extern "C" {
             fn XOpenDisplay(display_name: *const c_char) -> *mut Display;
             fn XCloseDisplay(display: *mut Display) -> c_int;
+            fn XDefaultScreen(display: *mut Display) -> c_int;
             fn XSetErrorHandler(handler: XErrorHook) -> XErrorHook;
             fn XInitThreads() -> c_int;
         }
@@ -126,6 +136,7 @@ impl Xlib {
             x_open_display: XOpenDisplay,
             x_close_display: XCloseDisplay,
             x_get_xcb_connection: XGetXCBConnection,
+            x_default_screen: XDefaultScreen,
             x_set_error_handler: XSetErrorHandler,
             x_init_threads: XInitThreads,
         })
@@ -146,6 +157,8 @@ impl Xlib {
         let x_set_error_handler =
             unsafe { xlib_library.get::<XSetErrorHandler>(b"XSetErrorHandler\0")? };
 
+        let x_default_screen = unsafe { xlib_library.get::<XDefaultScreen>(b"XDefaultScreen\0")? };
+
         let x_get_xcb_connection =
             unsafe { xlib_xcb_library.get::<XGetXCBConnection>(b"XGetXCBConnection\0")? };
 
@@ -155,6 +168,7 @@ impl Xlib {
             x_open_display: *x_open_display,
             x_close_display: *x_close_display,
             x_get_xcb_connection: *x_get_xcb_connection,
+            x_default_screen: *x_default_screen,
             x_set_error_handler: *x_set_error_handler,
             x_init_threads: *x_init_threads,
             _xlib_library: xlib_library,
