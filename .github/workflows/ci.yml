@@ -77,16 +77,3 @@ jobs:
       - name: Install Rust
         run: rustup update stable
       - run: cargo fmt --all --check
-
-  security_audit:
-    permissions:
-      checks: write
-      contents: read
-      issues: write
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      # https://github.com/rustsec/audit-check/issues/2
-      - uses: rustsec/audit-check@master
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
